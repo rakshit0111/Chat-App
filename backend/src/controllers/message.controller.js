@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import {v2 as cloudinary} from "cloudinary";
+import { getReceiverSocketId,io } from "../lib/socket.js";
 
 // get all user documents from collection except the curr authenticated one
 export const getUsersForSidebar = async(req,res) =>{
@@ -59,6 +60,12 @@ export const sendMessage = async(req,res) =>{
         await newMessage.save();
 
         // socket.io functionality
+        const receiverSocketId = getReceiverSocketId(receiverId);
+
+        if(receiverSocketId)
+        {
+            io.to(receiverSocketId).emit("newMessage",newMessage);//emission sends a Message Document
+        }
 
         res.status(201).json(newMessage);
     } catch (error) {
