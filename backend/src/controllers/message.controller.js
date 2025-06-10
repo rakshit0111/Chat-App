@@ -16,60 +16,86 @@ export const getUsersForSidebar = async(req,res) =>{
     }
 };
 
-export const getMessages = async(req,res) =>{
+export const getMessages = async (req, res) => {
     try {
-        const {id : userToChatId } = req.params; //user with whom i want to chat
+        const { id: userToChatId } = req.params; // User with whom the current user wants to chat
         const myId = req.user._id;
 
-        const messages = await Message.find(
-            {$or : [
-                {senderId : myId ,receiverId : userToChatId},
-                {senderId : userToChatId ,receiverId : myId},
-            ]}
-        );
+        const messages = await Message.find({
+            $or: [
+                { senderId: myId, receiverId: userToChatId },
+                { senderId: userToChatId, receiverId: myId },
+            ],
+        })
+        .populate("senderId", "fullName profilePic") // Populate sender info
+        .populate("receiverId", "fullName profilePic") // Populate receiver info
+        .sort({ createdAt: 1 }); // Sort messages by creation time
 
         return res.status(200).json(messages);
-
     } catch (error) {
-        console.log("Error in getMessages controller",error.message);
-        res.status(500).json({message : "Internal Server Error"});
+        console.log("Error in getMessages controller", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
     }
 };
 
-export const sendMessage = async(req,res) =>{
+export const sendMessage = async (req, res) => {
     try {
-        const {text,image} = req.body;
-        const {id : receiverId} = req.params;
+        const { text, image, groupId } = req.body;
+        const { id } = req.params; // receiverId or unused if it's a group message
         const senderId = req.user._id;
 
         let imageUrl;
 
-        if(image)//upload image to cloudinary
-        {
+        if (image) {
             const uploadResponse = await cloudinary.uploader.upload(image);
             imageUrl = uploadResponse.secure_url;
         }
 
-        const newMessage = new Message({
+        const messageData = {
             senderId,
-            receiverId,
             text,
             image: imageUrl,
-        });
+        };
 
-        await newMessage.save();
-
-        // socket.io functionality
-        const receiverSocketId = getReceiverSocketId(receiverId);
-
-        if(receiverSocketId)
-        {
-            io.to(receiverSocketId).emit("newMessage",newMessage);//emission sends a Message Document
+        // If it's a group message
+        if (groupId) {
+            messageData.groupId = groupId;
+        } else {
+            // If it's a direct message
+            messageData.receiverId = id;
         }
 
-        res.status(201).json(newMessage);
+        const newMessage = new Message(messageData);
+        await newMessage.save();
+
+        // Get populated message with sender info
+        const populatedMessage = await Message.findById(newMessage._id)
+            .populate("senderId", "fullName profilePic") // Populate senderId
+            .populate("receiverId", "fullName profilePic"); // Populate receiverId
+
+        // Socket.io functionality
+        if (groupId) {
+            // Broadcast to all members in the group
+            io.to(groupId).emit("newGroupMessage", populatedMessage);
+        } else {
+            // Send to specific receiver
+            const receiverSocketId = getReceiverSocketId(id);
+            
+            if (receiverSocketId) {
+                // Important: Also emit to sender's socket to update their own UI
+                io.to(receiverSocketId).emit("newMessage", populatedMessage);
+            }
+            
+            // Additionally, emit to sender's socket to update their own UI
+            const senderSocketId = getReceiverSocketId(senderId.toString());
+            if (senderSocketId) {
+                io.to(senderSocketId).emit("newMessage", populatedMessage);
+            }
+        }
+
+        res.status(201).json(populatedMessage);
     } catch (error) {
-        console.log("Error in sendMessage controller",error.message);
-        res.status(500).json({message : "Internal Server Error"});
+        console.log("Error in sendMessage controller", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
     }
 };

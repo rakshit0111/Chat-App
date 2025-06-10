@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
-import { Infinity, Wand,Ghost, Waves} from "lucide-react";
+import { Infinity, Wand, Ghost, Waves } from "lucide-react";
 
 const Navbar = () => {
-  const { logOut, authUser } = useAuthStore();
+  const { logOut, authUser } = useAuthStore(); // Always call hooks at the top level
 
   return (
     <header
@@ -24,32 +24,33 @@ const Navbar = () => {
           <div className="flex items-center gap-2">
             <Link
               to={"/settings"}
-              className={`
-              btn btn-sm gap-2 transition-colors
-              
-              `}
+              className={`btn btn-sm gap-2 transition-colors`}
             >
               <Wand className="w-4 h-4" />
               <span className="hidden sm:inline">Settings</span>
             </Link>
 
-            {authUser && (
+            {authUser ? (
               <>
                 <Link to={"/profile"} className={`btn btn-sm gap-2`}>
                   <Ghost className="size-5" />
                   <span className="hidden sm:inline">Profile</span>
                 </Link>
 
-                <button className="flex gap-2 items-center" onClick={logOut}>
+                <button
+                  className="flex gap-2 items-center"
+                  onClick={logOut}
+                >
                   <Waves className="size-5" />
                   <span className="hidden sm:inline">Logout</span>
                 </button>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
     </header>
   );
 };
+
 export default Navbar;

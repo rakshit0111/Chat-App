@@ -1,40 +1,49 @@
-import {Server} from "socket.io"
+import { Server } from "socket.io";
 import http from "http";
 import express from "express";
 
 const app = express();
 const server = http.createServer(app);
 
-const io = new Server(server,{
-    cors :{
-        origin : ["http://localhost:5173"]
-    }
+const io = new Server(server, {
+    cors: {
+        origin: ["http://localhost:5173"],
+    },
 });
 
-export function getReceiverSocketId (userId){
-    return userSocketMap[userId];
-};
-
-
-//store online users' ids
+// Store online users' socket IDs
 const userSocketMap = {};
 
-io.on("connection", (socket) =>{
-    console.log("A user connected",socket.id);
+export function getReceiverSocketId(userId) {
+    return userSocketMap[userId];
+}
+
+io.on("connection", (socket) => {
+    console.log("A user connected", socket.id);
 
     const userId = socket.handshake.query.userId;
 
-    if(userId)
-        userSocketMap[userId] = socket.id;
+    if (userId) userSocketMap[userId] = socket.id;
 
-    io.emit("getOnlineUsers",Object.keys(userSocketMap));//emits a list of userIds
+    io.emit("getOnlineUsers", Object.keys(userSocketMap)); // Emit a list of userIds
 
-    socket.on("disconnect",()=>{
-        console.log("A user disconnected",socket.id);
-        delete(userSocketMap[userId]);
-        io.emit("getOnlineUsers",Object.keys(userSocketMap));
+    // Join a group chat room
+    socket.on("joinGroup", (groupId) => {
+        socket.join(groupId);
+        console.log(`User ${userId} joined group ${groupId}`);
+    });
+
+    // Leave a group chat room
+    socket.on("leaveGroup", (groupId) => {
+        socket.leave(groupId);
+        console.log(`User ${userId} left group ${groupId}`);
+    });
+
+    socket.on("disconnect", () => {
+        console.log("A user disconnected", socket.id);
+        delete userSocketMap[userId];
+        io.emit("getOnlineUsers", Object.keys(userSocketMap));
     });
 });
 
-
-export{io,app,server};
+export { io, app, server };

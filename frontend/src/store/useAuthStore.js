@@ -20,11 +20,9 @@ export const useAuthStore = create((set,get) => ({
             set({authUser : res.data});
             get().connectSocket();
         } catch (err) {
-            console.log("Error in useAuthStore",err);
-            set({authUser : null});
-        }
-        finally
-        {
+            console.log("Error in useAuthStore", err.response?.data?.message || err.message);
+            set({authUser : null}); // Clear authUser on unauthorized
+        } finally {
             set({isCheckingAuth : false});
         }
     },
@@ -67,6 +65,7 @@ export const useAuthStore = create((set,get) => ({
         try {
             await axiosInstance.post(("/auth/logout"));
             toast.success("Log Out succesfull !!")
+            set({authUser : null});
             get().disconnectSocket();
         } catch (error) {
             toast.error(error.response.data.message);

@@ -30,9 +30,9 @@ export const useChatStore = create((set,get) => ({
 
         try {
             const res = await axiosInstance.get(`/message/${userId}`);
-            set({messages : res.data});
+            set({messages : res.data}); // Update the state with fetched messages
         } catch (error) {
-            toast.error(error.response.data.message);
+            toast.error(error.response?.data?.message || "Failed to load messages");
         }
         finally{
             set({isMessagesLoading : false});
@@ -52,23 +52,38 @@ export const useChatStore = create((set,get) => ({
 
     setSelectedUser : (selectedUser) => set({selectedUser}),
 
-    subscribeToMessages : () =>{
-        const {selectedUser} = get();
+    subscribeToMessages: () => {
+        const { selectedUser } = get();
 
-        if(!selectedUser)
-            return;
+        if (!selectedUser) return;
 
         const socket = useAuthStore.getState().socket;
+        if (!socket) return;
 
-        socket.on("newMessage",(newMessage)=>{
+        // Add logging to debug socket issues
+        console.log("Subscribing to private messages for user:", selectedUser._id);
 
-            if(newMessage.senderId !== selectedUser._id)
-                return;
-            set({
-                messages : [...get().messages,newMessage]//receives the message document emitted and updates
-            })
+        socket.on("newMessage", (newMessage) => {
+            console.log("Received message:", newMessage);
+            
+            // Ensure message is valid and relevant to current chat
+            if (!newMessage) return;
+            
+            const currentUserId = useAuthStore.getState().authUser._id;
+            const isSentByMe = newMessage.senderId._id === currentUserId;
+            const isSentBySelectedUser = newMessage.senderId._id === selectedUser._id;
+            const isReceivedByMe = newMessage.receiverId?._id === currentUserId;
+            const isReceivedBySelectedUser = newMessage.receiverId?._id === selectedUser._id;
+            
+            // Only update messages if it's part of the current conversation
+            if ((isSentByMe && isReceivedBySelectedUser) || 
+                (isSentBySelectedUser && isReceivedByMe)) {
+                console.log("Updating messages with:", newMessage);
+                set({
+                    messages: [...get().messages, newMessage]
+                });
+            }
         });
-
     },
 
     unsubscribeFromMessages : () =>{
